@@ -304,10 +304,26 @@ namespace Flac2MP3
                         mp3File.Tag.Album = tfile.Tag.Album;
                         mp3File.Tag.AlbumArtists = tfile.Tag.AlbumArtists;
                         mp3File.Tag.Performers = tfile.Tag.Performers;
+                        mp3File.Tag.Composers = tfile.Tag.Composers;
                         mp3File.Tag.Genres = tfile.Tag.Genres;
                         mp3File.Tag.Year = tfile.Tag.Year;
                         mp3File.Tag.Track = tfile.Tag.Track;
                         mp3File.Tag.TrackCount = tfile.Tag.TrackCount;
+                        mp3File.Tag.Disc = tfile.Tag.Disc;
+                        mp3File.Tag.DiscCount = tfile.Tag.DiscCount;
+                        mp3File.Tag.Lyrics = tfile.Tag.Lyrics;
+                        mp3File.Tag.Comment = tfile.Tag.Comment;
+                        mp3File.Tag.Conductor = tfile.Tag.Conductor;
+                        mp3File.Tag.BeatsPerMinute = tfile.Tag.BeatsPerMinute;
+                        mp3File.Tag.Grouping = tfile.Tag.Grouping;
+                        mp3File.Tag.Publisher = tfile.Tag.Publisher;
+
+                        // Copy embedded pictures (e.g., album art)
+                        if (tfile.Tag.Pictures != null && tfile.Tag.Pictures.Length > 0)
+                        {
+                            mp3File.Tag.Pictures = tfile.Tag.Pictures;
+                        }
+
 
                         // Save the MP3 tags
                         mp3File.Save();
