@@ -8,13 +8,13 @@
         mc:Ignorable="d"
         Title="CompletionDialog" Height="450" Width="800"
         TextElement.Foreground="{DynamicResource MaterialDesign.Brush.Foreground}"
-        Background="{DynamicResource MaterialDesign.Brush.Background}"
         FontFamily="{materialDesign:MaterialDesignFont}"    
         TextOptions.TextFormattingMode="Ideal"
         TextOptions.TextRenderingMode="Auto"
         WindowStartupLocation="CenterOwner"
         TextElement.FontWeight="Regular"
-        TextElement.FontSize="13">
+        TextElement.FontSize="13"
+        Background="#FF5B5656">
     <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center">
         <TextBlock Text="Processing complete!" Margin="10" TextAlignment="Center" Foreground="White"/>
         <Button Content="OK" Margin="10" Click="OkButton_Click"/>

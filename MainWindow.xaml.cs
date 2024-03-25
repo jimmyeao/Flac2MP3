@@ -228,15 +228,13 @@ namespace Flac2MP3
 
         private void SetupBackgroundWorker()
         {
-            // Enable the worker to report progress
             worker.WorkerReportsProgress = true;
-
-            // Attach the DoWork event handler to the worker's DoWork event
+            worker.WorkerSupportsCancellation = true;
             worker.DoWork += Worker_DoWork;
-
-            // Attach the ProgressChanged event handler to the worker's ProgressChanged event
             worker.ProgressChanged += Worker_ProgressChanged;
+            worker.RunWorkerCompleted += Worker_RunWorkerCompleted; // Attach the completion event handler
         }
+
 
         private void UpdateStatus(string message)
         {
@@ -296,6 +294,11 @@ namespace Flac2MP3
 
                 foreach (string flacFile in flacFiles)
                 {
+                    if (worker.CancellationPending)  // Check if cancellation was requested
+                    {
+                        e.Cancel = true;  // Cancel the operation
+                        return;  // Exit the loop
+                    }
                     string outputFile = Path.Combine(outputFolder, Path.GetFileNameWithoutExtension(flacFile) + ".mp3");
                     bool skipFile = false;  // Add this line
                     // Check if output file exists and if user previously chose not to "Overwrite All"
@@ -402,6 +405,39 @@ namespace Flac2MP3
             overwriteAll = null; // Reset the overwrite flag
             AnimateProgressBarToZero();
         }
+        private void Worker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+            if (e.Cancelled)
+            {
+                // Update the UI to reflect that the operation was canceled
+                Dispatcher.Invoke(() =>
+                {
+                    UpdateStatus("Conversion aborted."); // Update the status bar text
+                    progressBar.Value = 0; // Reset the progress bar
+                    AnimateProgressBarToZero(); // Alternatively, if you want it to animate to zero
+                });
+            }
+            else if (e.Error != null)
+            {
+                // Handle any errors that occurred during the operation
+                Dispatcher.Invoke(() =>
+                {
+                    UpdateStatus("Error occurred."); // Update status with error message
+                    progressBar.Value = 0; // Reset the progress bar
+                });
+            }
+            else
+            {
+                // Operation completed successfully
+                Dispatcher.Invoke(() =>
+                {
+                    UpdateStatus("Conversion complete."); // Update status for successful completion
+                    progressBar.Value = 100; // Optionally set the progress bar to full if not already
+                    AnimateProgressBarToZero(); // Reset the progress bar after a brief pause to show completion
+                });
+            }
+        }
+
 
         private void Worker_ProgressChanged(object sender, ProgressChangedEventArgs e)
         {
@@ -411,5 +447,11 @@ namespace Flac2MP3
         }
 
         #endregion Private Methods
+
+        private void btnabort_Click(object sender, RoutedEventArgs e)
+        {
+            if (worker.IsBusy)
+                worker.CancelAsync(); // Request cancellation
+        }
     }
 }

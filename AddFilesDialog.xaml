@@ -8,13 +8,13 @@
         Title="AddFilesDialog" Height="450" Width="800"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         TextElement.Foreground="{DynamicResource MaterialDesign.Brush.Foreground}"
-        Background="{DynamicResource MaterialDesign.Brush.Background}"
         FontFamily="{materialDesign:MaterialDesignFont}"    
         TextOptions.TextFormattingMode="Ideal"
         TextOptions.TextRenderingMode="Auto"
         WindowStartupLocation="CenterOwner"
         TextElement.FontWeight="Regular"
-        TextElement.FontSize="13">
+        TextElement.FontSize="13"
+        Background="#FF5B5656">
     <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center">
         <TextBlock Text="Do you want to add to the existing list or create a new list?" 
                    Margin="10" TextAlignment="Center"  Foreground="White"/>

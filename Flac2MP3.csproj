@@ -6,9 +6,20 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <AssemblyVersion>1.0.0.36</AssemblyVersion>
-    <FileVersion>1.0.0.36</FileVersion>
+    <AssemblyVersion>1.0.0.41</AssemblyVersion>
+    <FileVersion>1.0.0.41</FileVersion>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Title>Flac2MP3</Title>
+    <PackageIcon>app.png</PackageIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="app.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="app.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="gong-wpf-dragdrop" Version="3.2.1" />
@@ -18,6 +29,13 @@
     <PackageReference Include="NAudio.Core" Version="2.2.1" />
     <PackageReference Include="NAudio.Lame" Version="2.1.0" />
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="app.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </Resource>
   </ItemGroup>
 
 </Project>
