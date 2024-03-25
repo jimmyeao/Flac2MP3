@@ -20,7 +20,7 @@ namespace Flac2MP3
         #region Private Fields
 
         private BackgroundWorker worker = new BackgroundWorker();
-
+        private bool? overwriteAll = null;
         #endregion Private Fields
 
         #region Public Constructors
@@ -57,20 +57,36 @@ namespace Flac2MP3
         // This method is used to animate a progress bar to zero value
         private void AnimateProgressBarToZero()
         {
-            // Create a new DoubleAnimation object
+            // Check if we need to invoke this method on the UI thread
+            if (!progressBar.Dispatcher.CheckAccess())
+            {
+                // Marshal the execution of this method onto the UI thread
+                progressBar.Dispatcher.Invoke(new Action(AnimateProgressBarToZero));
+                return; // Exit the current execution path, as the operation will be continued on the UI thread
+            }
+
+            // Create a new DoubleAnimation object (this part now runs on the UI thread)
             var animation = new DoubleAnimation
             {
-                // Set the starting value of the animation to the current value of the progress bar
-                From = progressBar.Value,
-                // Set the ending value of the animation to zero
-                To = 0,
-                // Set the duration of the animation to 1 second
-                Duration = TimeSpan.FromSeconds(1)
+                From = progressBar.Value,  // Starting value of the animation
+                To = 0,                     // Ending value of the animation
+                Duration = TimeSpan.FromSeconds(1), // Duration of the animation
+                FillBehavior = FillBehavior.Stop // Add this line
             };
 
             // Begin the animation on the ValueProperty of the progress bar
             progressBar.BeginAnimation(System.Windows.Controls.Primitives.RangeBase.ValueProperty, animation);
+
+            // Once the animation is complete, remove it and manually set the value to 0.
+            // This ensures the progress bar can be updated again in the future.
+            animation.Completed += (s, e) =>
+            {
+                progressBar.BeginAnimation(System.Windows.Controls.Primitives.RangeBase.ValueProperty, null);
+                progressBar.Value = 0; // Explicitly set the value to 0 to reflect the current state.
+            };
         }
+
+
 
         private void btnAddFiles_Click(object sender, RoutedEventArgs e)
         {
@@ -128,6 +144,12 @@ namespace Flac2MP3
         // This method is called when the "Join Files" button is clicked
         private void btnConvertFiles_Click(object sender, RoutedEventArgs e)
         {
+            overwriteAll = null;
+            Dispatcher.Invoke(() =>
+            {
+                progressBar.Value = 0; // Reset progress bar immediately without waiting for animation
+                UpdateStatus("Starting conversion...");
+            });
             var folderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog();
             System.Windows.Forms.DialogResult result = folderBrowserDialog.ShowDialog();
 
@@ -261,6 +283,7 @@ namespace Flac2MP3
         private void Worker_DoWork(object sender, DoWorkEventArgs e)
         {
             // Retrieve the data passed to the background worker
+            //AnimateProgressBarToZero(); // Animate the progress bar to zero before starting the conversion
             dynamic data = e.Argument;
             string outputFolder = data.OutputFolder;
             List<string> flacFiles = data.FlacFiles as List<string>;
@@ -274,6 +297,45 @@ namespace Flac2MP3
                 foreach (string flacFile in flacFiles)
                 {
                     string outputFile = Path.Combine(outputFolder, Path.GetFileNameWithoutExtension(flacFile) + ".mp3");
+                    bool skipFile = false;  // Add this line
+                    // Check if output file exists and if user previously chose not to "Overwrite All"
+                    if (File.Exists(outputFile) && overwriteAll != true)
+                    {
+                        if (overwriteAll == null) // Only ask the user if they haven't already selected an option
+                        {
+                            Dispatcher.Invoke(() =>
+                            {
+                                var dialog = new CustomDialog($"File {outputFile} already exists. Do you want to overwrite?");
+                                var result = dialog.ShowDialog();  // Shows your custom dialog
+
+                                switch (dialog.Choice)
+                                {
+                                    case CustomDialog.UserChoice.Yes:
+                                        // No action needed; continue to overwrite the current file.
+                                        break;
+                                    case CustomDialog.UserChoice.No:
+                                        skipFile = true;  // Skip this file.
+                                        break;
+                                    case CustomDialog.UserChoice.YesToAll:
+                                        overwriteAll = true;  // Overwrite all files without asking.
+                                        break;
+                                    case CustomDialog.UserChoice.NoToAll:
+                                        overwriteAll = false;  // Skip all remaining files.
+                                        break;
+                                }
+                            });
+
+
+                        }
+
+                        // If user chooses not to overwrite and did not select "Yes to All", skip this file
+                        if (skipFile || (overwriteAll == false && File.Exists(outputFile)))
+                        {
+                            continue;  // Now, this continue works correctly because it's not inside a lambda
+                        }
+
+                    }
+
                     Dispatcher.Invoke(() => UpdateStatus($"Converting {Path.GetFileName(flacFile)}..."));
 
                     using (var reader = new AudioFileReader(flacFile)) // Ensure this is suitable for reading FLAC if they are FLAC files.
@@ -337,6 +399,8 @@ namespace Flac2MP3
                 // Update the status on the UI thread
                 Dispatcher.Invoke(() => UpdateStatus("Conversion complete."));
             }
+            overwriteAll = null; // Reset the overwrite flag
+            AnimateProgressBarToZero();
         }
 
         private void Worker_ProgressChanged(object sender, ProgressChangedEventArgs e)
