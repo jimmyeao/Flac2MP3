@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <AssemblyVersion>1.0.0.41</AssemblyVersion>
-    <FileVersion>1.0.0.41</FileVersion>
+    <AssemblyVersion>1.0.0.59</AssemblyVersion>
+    <FileVersion>1.0.0.59</FileVersion>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <Title>Flac2MP3</Title>
     <PackageIcon>app.png</PackageIcon>
@@ -28,6 +28,7 @@
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="NAudio.Core" Version="2.2.1" />
     <PackageReference Include="NAudio.Lame" Version="2.1.0" />
+    <PackageReference Include="NAudio.WaveFormRenderer" Version="2.0.0" />
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
   </ItemGroup>
 

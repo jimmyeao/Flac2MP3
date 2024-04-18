@@ -8,7 +8,8 @@ using Microsoft.Win32; // Import the Microsoft.Win32 namespace for OpenFileDialo
 using System; // Import the System namespace
 using System.Collections.Generic; // Import the System.Collections.Generic namespace
 using System.Linq; // Import the System.Linq namespace
-using System.Windows.Media.Animation; // Import the System.Windows.Media.Animation namespace
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging; // Import the System.Windows.Media.Animation namespace
 
 namespace Flac2MP3
 {
@@ -281,11 +282,12 @@ namespace Flac2MP3
         private void Worker_DoWork(object sender, DoWorkEventArgs e)
         {
             // Retrieve the data passed to the background worker
-            //AnimateProgressBarToZero(); // Animate the progress bar to zero before starting the conversion
             dynamic data = e.Argument;
+            DateTime startTime = DateTime.Now;
+
             string outputFolder = data.OutputFolder;
             List<string> flacFiles = data.FlacFiles as List<string>;
-            int bitrate = ConvertBitrate(data.SelectedBitrate); // Assuming you pass 'SelectedBitrate' and have a method to convert it to an int
+            int bitrate = ConvertBitrate(data.SelectedBitrate);
 
             if (flacFiles != null)
             {
@@ -294,68 +296,98 @@ namespace Flac2MP3
 
                 foreach (string flacFile in flacFiles)
                 {
-                    if (worker.CancellationPending)  // Check if cancellation was requested
+                    if (worker.CancellationPending)
                     {
-                        e.Cancel = true;  // Cancel the operation
-                        return;  // Exit the loop
+                        e.Cancel = true;
+                        break;  // Use 'break' instead of 'return' to ensure the method exits the loop but continues to execute code below if necessary.
                     }
+                    // displlay the album art in the ui
+
                     string outputFile = Path.Combine(outputFolder, Path.GetFileNameWithoutExtension(flacFile) + ".mp3");
-                    bool skipFile = false;  // Add this line
-                    // Check if output file exists and if user previously chose not to "Overwrite All"
+                    bool skipFile = false;
+
                     if (File.Exists(outputFile) && overwriteAll != true)
                     {
-                        if (overwriteAll == null) // Only ask the user if they haven't already selected an option
+                        Dispatcher.Invoke(() =>
                         {
-                            Dispatcher.Invoke(() =>
+                            if (overwriteAll == null)
                             {
                                 var dialog = new CustomDialog($"File {outputFile} already exists. Do you want to overwrite?");
-                                var result = dialog.ShowDialog();  // Shows your custom dialog
+                                var result = dialog.ShowDialog();
 
                                 switch (dialog.Choice)
                                 {
-                                    case CustomDialog.UserChoice.Yes:
-                                        // No action needed; continue to overwrite the current file.
-                                        break;
                                     case CustomDialog.UserChoice.No:
-                                        skipFile = true;  // Skip this file.
+                                        skipFile = true;
                                         break;
                                     case CustomDialog.UserChoice.YesToAll:
-                                        overwriteAll = true;  // Overwrite all files without asking.
+                                        overwriteAll = true;
                                         break;
                                     case CustomDialog.UserChoice.NoToAll:
-                                        overwriteAll = false;  // Skip all remaining files.
+                                        overwriteAll = false;
                                         break;
                                 }
-                            });
+                            }
+                        });
 
-
-                        }
-
-                        // If user chooses not to overwrite and did not select "Yes to All", skip this file
-                        if (skipFile || (overwriteAll == false && File.Exists(outputFile)))
+                        if (skipFile || (overwriteAll == false))
                         {
-                            continue;  // Now, this continue works correctly because it's not inside a lambda
+                            continue;
                         }
-
                     }
 
                     Dispatcher.Invoke(() => UpdateStatus($"Converting {Path.GetFileName(flacFile)}..."));
 
-                    using (var reader = new AudioFileReader(flacFile)) // Ensure this is suitable for reading FLAC if they are FLAC files.
+                    using (var reader = new AudioFileReader(flacFile))
                     {
-                        LAMEPreset preset = DeterminePresetFromBitrate(bitrate);
-                        using (var writer = new LameMP3FileWriter(outputFile, reader.WaveFormat, preset))
+                        Dispatcher.Invoke(() =>
                         {
-                            writer.MinProgressTime = 250; // Minimum time between progress updates
-                            writer.OnProgress += (s, inputBytes, outputBytes, finished) =>
+                            var tagfile = TagLib.File.Create(flacFile);
+                            var pictures = tagfile.Tag.Pictures;
+                            if (pictures.Length > 0)
                             {
-                                int progressPercentage = (int)((double)inputBytes / reader.Length * 100);
-                                worker.ReportProgress(progressPercentage);
-                            };
+                                var image = ConvertByteArrayToBitmapImage(pictures[0].Data.Data);
+                                yourImageControl.Source = image;
+                            }
+                            else
+                            {
+                                yourImageControl.Source = new BitmapImage(new Uri("pack://application:,,,/app.png"));
+                            }
+                        });
+                        LAMEPreset preset = DeterminePresetFromBitrate(bitrate);
+                        IWaveProvider waveProvider = reader;
 
-                            reader.CopyTo(writer);
+                        if (reader.WaveFormat.SampleRate != 44100 && reader.WaveFormat.SampleRate != 48000 && reader.WaveFormat.SampleRate != 32000)
+                        {
+                            waveProvider = new MediaFoundationResampler(reader, new WaveFormat(44100, reader.WaveFormat.Channels));
+                            // You need to set the ResamplerQuality if you use MediaFoundationResampler
+                            // ((MediaFoundationResampler)waveProvider).ResamplerQuality = 60;
+                        }
+
+                        using (var writer = new LameMP3FileWriter(outputFile, waveProvider.WaveFormat, preset)) // outputFile is your destination path
+                        {
+                            // Initialize the total bytes read for calculating the current file progress
+                            long totalBytesRead = 0;
+                            byte[] buffer = new byte[8192]; // Buffer size can be adjusted; 8192 bytes is just an example
+                            int bytesRead;
+                            while ((bytesRead = waveProvider.Read(buffer, 0, buffer.Length)) > 0)
+                            {
+                                if (worker.CancellationPending)
+                                {
+                                    e.Cancel = true;
+                                    return; // Exit the loop and method early if cancellation is requested.
+                                }
+
+                                writer.Write(buffer, 0, bytesRead);
+                                totalBytesRead += bytesRead;
+
+                                // Update individual file progress
+                                int fileProgressPercentage = (int)((double)totalBytesRead / reader.Length * 100);
+                                worker.ReportProgress(fileProgressPercentage, "currentFile");
+                            }
                         }
                     }
+
                     using (var reader = new AudioFileReader(flacFile))
                     {
                         // Use TagLib# to read tags from the original FLAC file
@@ -395,56 +427,90 @@ namespace Flac2MP3
                     }
 
                     processedFiles++;
-                    int progressPercentage = (int)((double)processedFiles / totalFiles * 100);
-                    worker.ReportProgress(progressPercentage);
+                    int overallProgress = (int)((double)processedFiles / totalFiles * 100);
+                    worker.ReportProgress(overallProgress, "overall");
+
+                    TimeSpan elapsedTime = DateTime.Now - startTime;
+                    double timePerFile = elapsedTime.TotalSeconds / processedFiles;
+                    double remainingTime = timePerFile * (totalFiles - processedFiles);
+                    Dispatcher.Invoke(() => timeRemainingText.Text = $"Time Remaining: {TimeSpan.FromSeconds(remainingTime):mm\\:ss}");
                 }
 
-                // Update the status on the UI thread
                 Dispatcher.Invoke(() => UpdateStatus("Conversion complete."));
+                Dispatcher.Invoke(() => yourImageControl.Source = new BitmapImage(new Uri("pack://application:,,,/app.png")));
             }
             overwriteAll = null; // Reset the overwrite flag
-            AnimateProgressBarToZero();
+            Dispatcher.Invoke(() => AnimateProgressBarToZero());
+        }
+        private BitmapImage ConvertByteArrayToBitmapImage(byte[] imageData)
+        {
+            using (var ms = new MemoryStream(imageData))
+            {
+                var image = new BitmapImage();
+                image.BeginInit();
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.StreamSource = ms;
+                image.EndInit();
+                image.Freeze(); // Important for use in another thread
+                return image;
+            }
         }
         private void Worker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            if (e.Cancelled)
+            // Use Dispatcher.Invoke to update UI elements from the UI thread
+            Dispatcher.Invoke(() =>
             {
-                // Update the UI to reflect that the operation was canceled
-                Dispatcher.Invoke(() =>
+                if (e.Cancelled)
                 {
-                    UpdateStatus("Conversion aborted."); // Update the status bar text
-                    progressBar.Value = 0; // Reset the progress bar
-                    AnimateProgressBarToZero(); // Alternatively, if you want it to animate to zero
-                });
-            }
-            else if (e.Error != null)
-            {
-                // Handle any errors that occurred during the operation
-                Dispatcher.Invoke(() =>
+                    // Update the UI to reflect that the operation was canceled
+                    UpdateStatus("Conversion aborted.");
+                    progressBar.Value = 0; // Reset the individual file progress bar
+                    overallProgressBar.Value = 0; // Reset the overall progress bar
+                    timeRemainingText.Text = "Time Remaining: --:--"; // Reset the time remaining
+                }
+                else if (e.Error != null)
                 {
-                    UpdateStatus("Error occurred."); // Update status with error message
-                    progressBar.Value = 0; // Reset the progress bar
-                });
-            }
-            else
-            {
-                // Operation completed successfully
-                Dispatcher.Invoke(() =>
+                    // Handle any errors that occurred during the operation
+                    UpdateStatus("Error occurred.");
+                    progressBar.Value = 0; // Reset the individual file progress bar
+                    overallProgressBar.Value = 0; // Reset the overall progress bar
+                    timeRemainingText.Text = "Time Remaining: --:--"; // Reset the time remaining
+                }
+                else
                 {
-                    UpdateStatus("Conversion complete."); // Update status for successful completion
-                    progressBar.Value = 100; // Optionally set the progress bar to full if not already
-                    AnimateProgressBarToZero(); // Reset the progress bar after a brief pause to show completion
-                });
-            }
+                    // Operation completed successfully
+                    UpdateStatus("Conversion complete.");
+                    progressBar.Value = 100; // Optionally set the individual file progress bar to full to indicate the last file was completed
+                    overallProgressBar.Value = 100; // Optionally set the overall progress bar to full to indicate completion
+                                                    // Note: If you prefer to reset them instead of showing full, set both values to 0.
+                    timeRemainingText.Text = "Time Remaining: 00:00"; // Optionally reset or set to complete time
+                }
+
+                // Additional UI resets or updates can be added here if needed
+            });
+
+            // Reset the cancellation flag for future operations
+            overwriteAll = null; // Reset the overwrite flag if used
+            worker.CancelAsync(); // Reset the cancellation flag of the BackgroundWorker
         }
+
 
 
         private void Worker_ProgressChanged(object sender, ProgressChangedEventArgs e)
         {
-            // Set the value of the progressBar control to the progress percentage provided in the
-            // event arguments.
-            progressBar.Value = e.ProgressPercentage;
+            if (e.UserState as string == "currentFile")
+            {
+                // This is progress for the current file
+                progressBar.Value = e.ProgressPercentage;
+            }
+            else if (e.UserState as string == "overall")
+            {
+                // This is the overall progress
+                overallProgressBar.Value = e.ProgressPercentage;
+            }
         }
+
+
 
         #endregion Private Methods
 
