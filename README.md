@@ -1,4 +1,4 @@
-[![CodeQL](https://github.com/jimmyeao/Flac2MP3/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/jimmyeao/Flac2MP3/actions/workflows/github-code-scanning/codeql)
+[![CodeQL Advanced](https://github.com/jimmyeao/Flac2MP3/actions/workflows/codeql.yml/badge.svg)](https://github.com/jimmyeao/Flac2MP3/actions/workflows/codeql.yml)
 
 
 A simple tool to convert flac files to mp3:
